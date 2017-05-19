@@ -1,0 +1,10 @@
+wǒ,hào,qí,pín,xuè,hǎo,bù,hǎo,zhì,liáo
+huàn,zhě,zhěn,duàn,wéi,gāo,xuè,yā,guān,xīn,bìng
+a,a,a,a
+,
+#,$,%
+*,&
+1,2,3,4
+
+
+jì,de,bǎ,zhè,gè,zì,bǔ,chōng,dào,zì,diǎn,lǐ,qù
