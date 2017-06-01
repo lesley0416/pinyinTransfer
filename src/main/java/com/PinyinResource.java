@@ -14,7 +14,6 @@ import java.util.concurrent.ConcurrentHashMap;
 /**
  * 资源文件加载类
  *
- * @author stuxuhai (dczxxuhai@gmail.com)
  */
 public final class PinyinResource {
 
@@ -62,14 +61,27 @@ public final class PinyinResource {
     }
 
     public static Map<String, String> getPinyinResource() {
+//    	System.out.println("read pinyin.dict");
         return getResource(newClassPathReader("../../resources/data/pinyin.dict"));
     }
 
-    public static Map<String, String> getMutilPinyinResource() {
-        return getResource(newClassPathReader("../../resources/data/mutil_pinyin.dict"));
+    public static Map<String, String> getMultiPinyinResource() {
+//    	System.out.println("read multi_pinyin.dict");
+        return getResource(newClassPathReader("../../resources/data/multi_pinyin.dict"));
+    }
+    
+    public static Map<String, String> getNamePinyinResource() {
+//    	System.out.println("read name_pinyin.dict");
+    	return getResource(newClassPathReader("../../resources/data/name_pinyin.dict"));
+    }
+    
+    public static Map<String, String> getMultiNamePinyinResource() {
+//    	System.out.println("read multi_name_pinyin.dict");
+    	return getResource(newClassPathReader("../../resources/data/multi_name_pinyin.dict"));
     }
 
     public static Map<String, String> getChineseResource() {
         return getResource(newClassPathReader("../../resources/data/chinese.dict"));
     }
+
 }

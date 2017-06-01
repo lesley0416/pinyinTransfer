@@ -8,27 +8,45 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+//import javax.swing.text.Segment;
+//
+//import com.sun.javafx.sg.prism.NGShape.Mode;
+//import com.sun.org.apache.bcel.internal.generic.NEW;
+//
+//import sun.launcher.resources.launcher;
+
 /**
  * 汉字转拼音类
  *
- * @author stuxuhai (dczxxuhai@gmail.com)
  */
 public final class PinyinHelper {
 	private static List<String> dict = new ArrayList<String>();
+	private static List<String> nameDict = new ArrayList<String>();
 	private static final Map<String, String> PINYIN_TABLE = PinyinResource.getPinyinResource();
-	private static final Map<String, String> MUTIL_PINYIN_TABLE = PinyinResource.getMutilPinyinResource();
+	private static final Map<String, String> MULTI_PINYIN_TABLE = PinyinResource.getMultiPinyinResource();
+	private static final Map<String, String> NAME_PINYIN_TABLE = PinyinResource.getNamePinyinResource();
+	private static final Map<String, String> NAME_MULTI_PINYIN_TABLE = PinyinResource.getMultiNamePinyinResource();
 	private static final DoubleArrayTrie DOUBLE_ARRAY_TRIE = new DoubleArrayTrie();
+	private static final DoubleArrayTrie NAME_DOUBLE_ARRAY_TRIE = new DoubleArrayTrie();
 	private static final String PINYIN_SEPARATOR = ","; // 拼音分隔符
 	private static final char CHINESE_LING = '〇';
 	private static final String ALL_UNMARKED_VOWEL = "aeiouv";
 	private static final String ALL_MARKED_VOWEL = "āáǎàēéěèīíǐìōóǒòūúǔùǖǘǚǜ"; // 所有带声调的拼音字母
 
 	static {
-		for (String word : MUTIL_PINYIN_TABLE.keySet()) {
+		for (String word : MULTI_PINYIN_TABLE.keySet()) {
 			dict.add(word);
 		}
 		Collections.sort(dict);
 		DOUBLE_ARRAY_TRIE.build(dict);
+	}
+	
+	static {
+		for (String word : NAME_MULTI_PINYIN_TABLE.keySet()) {
+			nameDict.add(word);
+		}
+		Collections.sort(nameDict);
+		NAME_DOUBLE_ARRAY_TRIE.build(nameDict);
 	}
 
 	private PinyinHelper() {
@@ -118,7 +136,18 @@ public final class PinyinHelper {
 	 *            拼音格式：WITH_TONE_NUMBER--数字代表声调，WITHOUT_TONE--不带声调，WITH_TONE_MARK--带声调
 	 * @return 汉字的拼音
 	 */
-	public static String[] convertToPinyinArray(char c, PinyinFormat pinyinFormat) {
+	public static String[] convertToPinyinArray(char c, PinyinFormat pinyinFormat, String mode) {
+		if (mode == "name") {
+			String pinyinName = NAME_PINYIN_TABLE.get(String.valueOf(c));
+			if ((pinyinName != null) && (!"null".equals(pinyinName))) {
+				Set<String> set = new LinkedHashSet<String>();
+				for (String str : formatPinyin(pinyinName, pinyinFormat)) {
+					set.add(str);
+				}
+				return set.toArray(new String[set.size()]);
+			}
+		}
+
 		String pinyin = PINYIN_TABLE.get(String.valueOf(c));
 		if ((pinyin != null) && (!"null".equals(pinyin))) {
 			Set<String> set = new LinkedHashSet<String>();
@@ -127,8 +156,20 @@ public final class PinyinHelper {
 			}
 			return set.toArray(new String[set.size()]);
 		}
+
 		return new String[0];
 	}
+//	public static String[] convertToPinyinArray(char c, PinyinFormat pinyinFormat) {
+//		String pinyin = PINYIN_TABLE.get(String.valueOf(c));
+//		if ((pinyin != null) && (!"null".equals(pinyin))) {
+//			Set<String> set = new LinkedHashSet<String>();
+//			for (String str : formatPinyin(pinyin, pinyinFormat)) {
+//				set.add(str);
+//			}
+//			return set.toArray(new String[set.size()]);
+//		}
+//		return new String[0];
+//	}
 
 	/**
 	 * 将单个汉字转换成带声调格式的拼音
@@ -138,7 +179,7 @@ public final class PinyinHelper {
 	 * @return 字符串的拼音
 	 */
 	public static String[] convertToPinyinArray(char c) {
-		return convertToPinyinArray(c, PinyinFormat.WITH_TONE_MARK);
+		return convertToPinyinArray(c, PinyinFormat.WITH_TONE_MARK, "");
 	}
 
 	/**
@@ -153,7 +194,7 @@ public final class PinyinHelper {
 	 * @return 字符串的拼音
 	 * @throws PinyinException
 	 */
-	public static String convertToPinyinString(String str, String separator, PinyinFormat pinyinFormat)
+	public static String convertToPinyinString(String str, String separator, PinyinFormat pinyinFormat, String mode)
 			throws PinyinException {
 		str = ChineseHelper.convertToSimplifiedChinese(str);
 		StringBuilder sb = new StringBuilder();
@@ -161,28 +202,34 @@ public final class PinyinHelper {
 		int strLen = str.length();
 		while (i < strLen) {
 			String substr = str.substring(i);
-			List<Integer> commonPrefixList = DOUBLE_ARRAY_TRIE.commonPrefixSearch(substr);
-			if (commonPrefixList.size() == 0) {
-				char c = str.charAt(i);
-				// 判断是否为汉字或者〇
-				if (ChineseHelper.isChinese(c) || c == CHINESE_LING) {
-					String[] pinyinArray = convertToPinyinArray(c, pinyinFormat);
-					if (pinyinArray != null) {
-						if (pinyinArray.length > 0) {
-							sb.append(pinyinArray[0]);
-						} else {
-							throw new PinyinException("Can't convert to pinyin: " + c);
+			
+			List<Integer> commonPrefixList = new ArrayList<Integer>();
+			if (mode == "name") {
+				commonPrefixList = NAME_DOUBLE_ARRAY_TRIE.commonPrefixSearch(substr);
+				if (commonPrefixList.size() != 0) {
+					String words = nameDict.get(commonPrefixList.get(commonPrefixList.size() - 1));
+					String[] pinyinArray = formatPinyin(NAME_MULTI_PINYIN_TABLE.get(words), pinyinFormat);
+					for (int j = 0, l = pinyinArray.length; j<l; j++) {
+						sb.append(pinyinArray[j]);
+						if (j < l - 1) {
+							sb.append(separator);
 						}
-					} else {
-						sb.append(str.charAt(i));
 					}
-				} else {
-					sb.append(c);
+					i += words.length();
+					
+					//////////////////////
+					if (i < strLen) {
+						sb.append(separator);
+					}
+					continue;
+					//////////////////////
 				}
-				i++;
-			} else {
+			}
+			
+			commonPrefixList = DOUBLE_ARRAY_TRIE.commonPrefixSearch(substr);
+			if (commonPrefixList.size() != 0) {
 				String words = dict.get(commonPrefixList.get(commonPrefixList.size() - 1));
-				String[] pinyinArray = formatPinyin(MUTIL_PINYIN_TABLE.get(words), pinyinFormat);
+				String[] pinyinArray = formatPinyin(MULTI_PINYIN_TABLE.get(words), pinyinFormat);
 				for (int j = 0, l = pinyinArray.length; j < l; j++) {
 					sb.append(pinyinArray[j]);
 					if (j < l - 1) {
@@ -191,13 +238,159 @@ public final class PinyinHelper {
 				}
 				i += words.length();
 			}
-
+			else {
+				char c = str.charAt(i);
+				// 判断是否为汉字或者〇
+				if (ChineseHelper.isChinese(c) || c == CHINESE_LING) {
+					String[] pinyinArray = convertToPinyinArray(c, pinyinFormat, mode); //转单个汉字
+					if (pinyinArray != null) {
+						if (pinyinArray.length > 0) {
+							sb.append(pinyinArray[0]);
+						} else {
+							// 字典中没有出现的汉字
+							sb.append(c);
+							System.err.println("[WARN]: Can't convert to pinyin:" + c + ", please check.");
+							System.err.println("[WARN]: Complete line is:" + str);
+//							throw new PinyinException("Can't convert to pinyin: " + c);
+						}
+					} else {
+						// ??
+						sb.append(str.charAt(i));
+					}
+				} else {
+					// 非汉字或者〇
+					sb.append(c);
+				}
+				i++;
+			}
+			
 			if (i < strLen) {
 				sb.append(separator);
 			}
+			
+/////////////////////////////////////////////////			
+////			List<Integer> commonPrefixList = DOUBLE_ARRAY_TRIE.commonPrefixSearch(substr);
+//			
+//			if (commonPrefixList.size() == 0) {
+//				char c = str.charAt(i);
+//				// 判断是否为汉字或者〇
+//				if (ChineseHelper.isChinese(c) || c == CHINESE_LING) {
+//					String[] pinyinArray = convertToPinyinArray(c, pinyinFormat); //转单个汉字
+//					if (pinyinArray != null) {
+//						if (pinyinArray.length > 0) {
+//							sb.append(pinyinArray[0]);
+//						} else {
+//							// 字典中没有出现的汉字
+//							sb.append(c);
+//							System.err.println("[WARN]: Can't convert to pinyin:" + c + ", please check.");
+//							System.err.println("[WARN]: Complete line is:" + str);
+////							throw new PinyinException("Can't convert to pinyin: " + c);
+//						}
+//					} else {
+//						// ??
+//						sb.append(str.charAt(i));
+//					}
+//				} else {
+//					// 非汉字或者〇
+//					sb.append(c);
+//				}
+//				i++;
+//			} else {
+//				String words = dict.get(commonPrefixList.get(commonPrefixList.size() - 1));
+//				String[] pinyinArray = formatPinyin(MULTI_PINYIN_TABLE.get(words), pinyinFormat);
+//				for (int j = 0, l = pinyinArray.length; j < l; j++) {
+//					sb.append(pinyinArray[j]);
+//					if (j < l - 1) {
+//						sb.append(separator);
+//					}
+//				}
+//				i += words.length();
+//			}
+//
+//			if (i < strLen) {
+//				sb.append(separator);
+//			}
+/////////////////////////////////////////////////			
 		}
 		return sb.toString();
 	}
+	
+//	没写完的转姓名	
+//	public static String convertToPinyinStringWithMode(String str, String separator, PinyinFormat pinyinFormat, String mode)
+//			throws PinyinException {
+//		str = ChineseHelper.convertToSimplifiedChinese(str);
+//		StringBuilder sb = new StringBuilder();
+//		int i = 0;
+//		int strLen = str.length();
+//		while (i<strLen) {
+//			String substr = str.substring(i);
+//		}
+//		return "";
+//	}
+
+//	/**
+//	 * 将字符串转换成相应格式的拼音
+//	 * 
+//	 * @param str
+//	 *            需要转换的字符串
+//	 * @param separator
+//	 *            拼音分隔符
+//	 * @param pinyinFormat
+//	 *            拼音格式：WITH_TONE_NUMBER--数字代表声调，WITHOUT_TONE--不带声调，WITH_TONE_MARK--带声调
+//	 * @return 字符串的拼音
+//	 * @throws PinyinException
+//	 */
+//	public static String convertToPinyinString(String str, String separator, PinyinFormat pinyinFormat)
+//			throws PinyinException {
+//		str = ChineseHelper.convertToSimplifiedChinese(str);
+//		StringBuilder sb = new StringBuilder();
+//		int i = 0;
+//		int strLen = str.length();
+//		while (i < strLen) {
+//			String substr = str.substring(i);
+//			List<Integer> commonPrefixList = DOUBLE_ARRAY_TRIE.commonPrefixSearch(substr);
+//			if (commonPrefixList.size() == 0) {
+//				char c = str.charAt(i);
+//				// 判断是否为汉字或者〇
+//				if (ChineseHelper.isChinese(c) || c == CHINESE_LING) {
+//					String[] pinyinArray = convertToPinyinArray(c, pinyinFormat); //转单个汉字
+//					if (pinyinArray != null) {
+//						if (pinyinArray.length > 0) {
+//							sb.append(pinyinArray[0]);
+//						} else {
+//							// 字典中没有出现的汉字
+//							sb.append(c);
+//							System.err.println("[WARN]: Can't convert to pinyin:" + c + ", please check.");
+//							System.err.println("[WARN]: Complete line is:" + str);
+////							throw new PinyinException("Can't convert to pinyin: " + c);
+//						}
+//					} else {
+//						// ??
+//						sb.append(str.charAt(i));
+//					}
+//				} else {
+//					// 非汉字或者〇
+//					sb.append(c);
+//				}
+//				i++;
+//			} else {
+//				String words = dict.get(commonPrefixList.get(commonPrefixList.size() - 1));
+//				String[] pinyinArray = formatPinyin(MULTI_PINYIN_TABLE.get(words), pinyinFormat);
+//				for (int j = 0, l = pinyinArray.length; j < l; j++) {
+//					sb.append(pinyinArray[j]);
+//					if (j < l - 1) {
+//						sb.append(separator);
+//					}
+//				}
+//				i += words.length();
+//			}
+//
+//			if (i < strLen) {
+//				sb.append(separator);
+//			}
+//		}
+//		return sb.toString();
+//	}
 
 	/**
 	 * 将字符串转换成带声调格式的拼音
@@ -210,7 +403,7 @@ public final class PinyinHelper {
 	 * @throws PinyinException
 	 */
 	public static String convertToPinyinString(String str, String separator) throws PinyinException {
-		return convertToPinyinString(str, separator, PinyinFormat.WITH_TONE_MARK);
+		return convertToPinyinString(str, separator, PinyinFormat.WITH_TONE_MARK, "");
 	}
 
 	/**
@@ -236,7 +429,7 @@ public final class PinyinHelper {
 	 * @return 对应拼音的首字母
 	 * @throws PinyinException
 	 */
-	public static String getShortPinyin(String str) throws PinyinException {
+	public static String getShortPinyin(String str, String mode) throws PinyinException {
 		String separator = "#"; // 使用#作为拼音分隔符
 		StringBuilder sb = new StringBuilder();
 
@@ -256,7 +449,7 @@ public final class PinyinHelper {
 					sb.append(str.charAt(j));
 					j++;
 				}
-				String hanziPinyin = convertToPinyinString(sb.toString(), separator, PinyinFormat.WITHOUT_TONE);
+				String hanziPinyin = convertToPinyinString(sb.toString(), separator, PinyinFormat.WITHOUT_TONE, mode);
 				String[] pinyinArray = hanziPinyin.split(separator);
 				for (String string : pinyinArray) {
 					charArray[i] = string.charAt(0);
@@ -274,10 +467,10 @@ public final class PinyinHelper {
 	}
 
 	public static void addMutilPinyinDict(String path) throws FileNotFoundException {
-		MUTIL_PINYIN_TABLE.putAll(PinyinResource.getResource(PinyinResource.newFileReader(path)));
+		MULTI_PINYIN_TABLE.putAll(PinyinResource.getResource(PinyinResource.newFileReader(path)));
 		dict.clear();
 		DOUBLE_ARRAY_TRIE.clear();
-		for (String word : MUTIL_PINYIN_TABLE.keySet()) {
+		for (String word : MULTI_PINYIN_TABLE.keySet()) {
 			dict.add(word);
 		}
 		Collections.sort(dict);
@@ -289,14 +482,14 @@ public final class PinyinHelper {
 	 * @param str
 	 * @return
 	 */
-	public static String[] getShortMulti(String str) throws PinyinException {
+	public static String[] getShortMulti(String str, String mode) throws PinyinException {
 		StringBuilder result = new StringBuilder();
 		//多音字数量
 		int multiCount = 1;
 		for (int i = 0, len = str.length(); i < len; i++) {
 			char c = str.charAt(i);
 			if (ChineseHelper.isChinese(c)) {
-				String[] hanziPinyin = PinyinHelper.convertToPinyinArray(c, PinyinFormat.WITHOUT_TONE);
+				String[] hanziPinyin = PinyinHelper.convertToPinyinArray(c, PinyinFormat.WITHOUT_TONE, mode);
 				if (hanziPinyin != null && hanziPinyin.length > 1) {
 					multiCount *= hanziPinyin.length;
 				}
@@ -311,7 +504,7 @@ public final class PinyinHelper {
 					result.append(c);
 					j++;
 				} else {
-					String[] pinyinArray = convertToPinyinArray(c, PinyinFormat.WITHOUT_TONE);
+					String[] pinyinArray = convertToPinyinArray(c, PinyinFormat.WITHOUT_TONE, mode);
 					if (pinyinArray.length > 1) {
 						//多音字
 						for (int k = 0, len1 = pinyinArray.length; k < len1; k++) {
@@ -358,14 +551,14 @@ public final class PinyinHelper {
 	 * @param str
 	 * @return
 	 */
-	public static String[] getFullMulti(String str) {
+	public static String[] getFullMulti(String str, String mode) {
 		StringBuilder result = new StringBuilder();
 		//多音字数量
 		int multiCount = 1;
 		for (int i = 0, len = str.length(); i < len; i++) {
 			char c = str.charAt(i);
 			if (ChineseHelper.isChinese(c)) {
-				String[] hanziPinyin = convertToPinyinArray(c, PinyinFormat.WITHOUT_TONE);
+				String[] hanziPinyin = convertToPinyinArray(c, PinyinFormat.WITHOUT_TONE, mode);
 				if (hanziPinyin != null && hanziPinyin.length > 1) {
 					multiCount *= hanziPinyin.length;
 				}
@@ -380,7 +573,7 @@ public final class PinyinHelper {
 					result.append(c);
 					j++;
 				} else {
-					String[] pinyinArray = convertToPinyinArray(c, PinyinFormat.WITHOUT_TONE);
+					String[] pinyinArray = convertToPinyinArray(c, PinyinFormat.WITHOUT_TONE, mode);
 					if (pinyinArray.length > 1) {
 						//多音字
 						for (int k = 0, len1 = pinyinArray.length; k < len1; k++) {

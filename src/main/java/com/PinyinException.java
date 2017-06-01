@@ -3,7 +3,6 @@ package main.java.com;
 /**
  * 异常类
  *
- * @author stuxuhai (dczxxuhai@gmail.com)
  */
 public class PinyinException extends Exception {
 
